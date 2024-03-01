@@ -24,7 +24,7 @@ def test_dask():
 @run_test_in_subprocess
 def test_dask_dataframe_deprecation():
     with pytest.warns(DeprecationWarning):
-        pass
+        import dask.dataframe  # noqa: F401
 
 
 @run_test_in_subprocess
