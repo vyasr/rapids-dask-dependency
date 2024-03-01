@@ -6,13 +6,12 @@ import importlib.machinery
 import sys
 from contextlib import contextmanager
 
-from .patches.dask import patches as dask_patches
-from .patches.distributed import patches as distributed_patches
+from .patches.base import dask_patcher
 
 
 class DaskLoader(importlib.abc.MetaPathFinder, importlib.abc.Loader):
     def create_module(self, spec):
-        if spec.name.startswith("dask") or spec.name.startswith("distributed"):
+        if spec.name in dask_patcher.module_names:
             with self.disable():
                 mod = importlib.import_module(spec.name)
 
@@ -23,11 +22,7 @@ class DaskLoader(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             spec.origin = mod.__spec__.origin
             spec.submodule_search_locations = mod.__spec__.submodule_search_locations
 
-            # TODO: I assume we'll want to only apply patches to specific submodules,
-            # that'll be up to RAPIDS dask devs to decide.
-            patches = dask_patches if "dask" in spec.name else distributed_patches
-            for patch in patches:
-                patch(mod)
+            dask_patcher.apply(mod)
             return mod
 
     def exec_module(self, _):
@@ -42,11 +37,7 @@ class DaskLoader(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             sys.meta_path.insert(0, self)
 
     def find_spec(self, fullname: str, _, __=None):
-        if (
-            fullname in ("dask", "distributed")
-            or fullname.startswith("dask.")
-            or fullname.startswith("distributed.")
-        ):
+        if fullname in dask_patcher.module_names:
             return importlib.machinery.ModuleSpec(
                 name=fullname,
                 loader=self,
